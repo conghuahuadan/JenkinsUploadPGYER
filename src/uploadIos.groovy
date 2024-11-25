@@ -8,20 +8,9 @@ import java.text.SimpleDateFormat
 
 def buildResult = manager.getResult()
 def jobName = manager.getEnvVariable("JOB_NAME")
-def gitBranch = manager.getEnvVariable("GIT_BRANCH")
-def buildType = manager.getEnvVariable("Build").toLowerCase()
+def gitBranch = manager.getEnvVariable("GitTag")
 def buildUrl = manager.getEnvVariable("BUILD_URL")
-def flutter = manager.getEnvVariable("Flutter")
-def test = manager.getEnvVariable("Test")
 def webhook = ""
-String[] webhooksToDebug = ["3fc9a5f488d1de93bcd35b3d8b6a6c8fd16dc7cfdc99f8692f5ffc4554dfcc7c", "3fc9a5f488d1de93bcd35b3d8b6a6c8fd16dc7cfdc99f8692f5ffc4554dfcc7c"]
-String[] webhooksToRelease = ["014c0f1e2b0b44c8854d755819692bb7835ebded35241638c44ec462c10e606a", "51e1a57ab205feee4ef6526f2cb4d796256e309c6d023820282f92c1f5128eda"]
-String[] webhooks = [];
-if (test) {
-    webhooks = webhooksToDebug;
-} else {
-    webhooks = webhooksToRelease;
-}
 if (buildResult == "SUCCESS") {
     def _api_key = "5e5e94fa4453d5e055739cf37cb280ee"
     def url = new URL("https://www.pgyer.com/apiv2/app/getCOSToken")
@@ -30,7 +19,7 @@ if (buildResult == "SUCCESS") {
     connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
     def formData = [
             "_api_key" : _api_key,
-            "buildType": "apk"
+            "buildType": "ipa"
     ]
     def encodedFormData = formData.collect { key, value ->
         "${URLEncoder.encode(key, "UTF-8")}=${URLEncoder.encode(value, "UTF-8")}"
@@ -40,8 +29,9 @@ if (buildResult == "SUCCESS") {
         writer.write(encodedFormData)
     }
     def responseCode = connection.responseCode
+    manager.listener.logger.println("Response Code: ${responseCode}")
     def response = connection.inputStream.text
-    manager.listener.logger.println("· 获取上传Token: ${response}")
+    manager.listener.logger.println("Response: ${response}")
 
     def jsonSlurper = new JsonSlurper()
     def jsonObject = jsonSlurper.parseText(response)
@@ -59,21 +49,17 @@ if (buildResult == "SUCCESS") {
     ]
     def workspace = manager.getEnvVariable("WORKSPACE")
     def module = manager.getEnvVariable("Module")
-    def build = manager.getEnvVariable("Build").toLowerCase()
     def apkFilePath = ""
-    def apkLastModified = 0
-    def directoryPath = String.format('%s/%s/build/outputs/apk/%s', workspace, module, build)
+    def directoryPath = String.format('%s/ipa', workspace)
     def directory = new File(directoryPath)
     directory.eachFile { file ->
-        if (file.isFile() && file.name.endsWith('.apk')) {
-            if (file.lastModified() > apkLastModified) {
-                apkLastModified = file.lastModified();
-                apkFilePath = file.absolutePath
-            }
+        manager.listener.logger.println("${file.absolutePath}")
+        if (file.isFile() && file.name.endsWith('.ipa')) {
+            apkFilePath = file.absolutePath
         }
     }
     def file = new File(apkFilePath)
-    manager.listener.logger.println("· 上传App文件: ${file.path}")
+    manager.listener.logger.println("ipa路径: ${file.path}")
     connection.doOutput = true
     DataOutputStream outputStream = new DataOutputStream(connection.outputStream)
     formData.each { key, value ->
@@ -100,7 +86,9 @@ if (buildResult == "SUCCESS") {
     outputStream.flush()
     outputStream.close()
     responseCode = connection.responseCode
+    manager.listener.logger.println("Response Code: ${responseCode}")
     response = connection.inputStream.text
+    manager.listener.logger.println("Response: ${response}")
 
     def tryCount = 0
     def buildInfo
@@ -111,7 +99,7 @@ if (buildResult == "SUCCESS") {
             connection = url.openConnection()
             def inputStream = connection.inputStream
             response = inputStream.text
-            manager.listener.logger.println("· 查询App发布状态: ${response}")
+            manager.listener.logger.println("Response: ${response}")
             jsonSlurper = new JsonSlurper()
             jsonObject = jsonSlurper.parseText(response)
             if (jsonObject.code == 1246 || jsonObject.code == 1247) {
@@ -126,19 +114,20 @@ if (buildResult == "SUCCESS") {
             e.printStackTrace()
         }
     }
-    webhook = "https://oapi.dingtalk.com/robot/send?access_token=" + webhooks[0];
+
+    webhook = "https://oapi.dingtalk.com/robot/send?access_token=b3bc6265f248f18e088948e8734007487eda5966f0c57a059220519a284602b6"
     def apkDownloadUrl = String.format("https://www.pgyer.com/%s", buildInfo.buildShortcutUrl).replace("pgyer", "xcxwo")
     def apkQrCode = buildInfo.buildQRCodeURL.replace("pgyer", "xcxwo")
     def appVersion = buildInfo.buildVersion
     def appVersionNo = buildInfo.buildVersionNo
-    manager.listener.logger.println("· 下载二维码: ${buildInfo.buildQRCodeURL}")
-    dingding("金十数据", "应用名称：" + jobName + "（构建成功）\n\n构建分支：" + gitBranch + "，flutter/" + flutter + "\n\n构建版本：" + appVersion + "_" + appVersionNo + "_" + buildType + "\n\n构建时间：" + getNowTime() + "\n\n下载链接：[地址](" + apkDownloadUrl + ")" + "\n![](" + apkQrCode + ")", webhook)
+    manager.listener.logger.println("二维码: ${buildInfo.buildQRCodeURL}")
+    dingding("金十数据", "应用名称：" + jobName + "（构建成功）\n\n构建分支：" + gitBranch + "\n\n构建版本：" + appVersion + "_" + appVersionNo  + "\n\n构建时间：" + getNowTime() + "\n\n下载链接：[地址](" + apkDownloadUrl + ")" + "\n\n安装密码：" + "123456" + "\n![](" + apkQrCode + ")", webhook)
 } else if (buildResult == "ABORTED") {
-    webhook = "https://oapi.dingtalk.com/robot/send?access_token=" + webhooks[1];
+    webhook = "https://oapi.dingtalk.com/robot/send?access_token=b3bc6265f248f18e088948e8734007487eda5966f0c57a059220519a284602b6"
     dingding("金十数据", "应用名称：" + jobName + "（构建被终止）\n\n" + "\n\n构建时间：" + getNowTime() + "\n\n[查看详情](" + buildUrl + ")", webhook)
 } else {
-    webhook = "https://oapi.dingtalk.com/robot/send?access_token=" + webhooks[1];
-    dingding("金十数据", "应用名称：" + jobName + "（构建失败）\n\n构建分支：" + gitBranch + "，flutter/" + flutter + "\n\n构建时间：" + getNowTime() + "\n\n[查看详情](" + buildUrl + ")", webhook)
+    webhook = "https://oapi.dingtalk.com/robot/send?access_token=b3bc6265f248f18e088948e8734007487eda5966f0c57a059220519a284602b6"
+    dingding("金十数据", "应用名称：" + jobName + "（构建失败）\n\n构建分支：" + gitBranch + "\n\n构建时间：" + getNowTime() + "\n\n[查看详情](" + buildUrl + ")", webhook)
 }
 
 
@@ -168,8 +157,6 @@ def dingding(p_title, p_text, webhook) {
     connection.connect()
 
     def respText = connection.content.text
-    manager.listener.logger.println("· 钉钉文本: ${p_text.replace("\n", " | ")}")
-    manager.listener.logger.println("· 钉钉推送结果: ${respText}")
 }
 
 def getNowTime() {
