@@ -7,7 +7,7 @@ class manager {
         }
     }
 
-    static String getEnvVariable(String s) {
+    static Object getEnvVariable(String s) {
         if (s.equals("WORKSPACE")) {
             return "/Volumes/External/IdeaProjects/Groovy/JenkinsUploadPGYER/src"
         } else if (s.equals("Module")) {
@@ -22,6 +22,10 @@ class manager {
             return "Debug"
         } else if (s.equals("BUILD_URL")) {
             return "https://www.baidu.com"
+        } else if (s.equals("Flutter")) {
+            return "master"
+        } else if (s.equals("Test")) {
+            return true
         }
         return ""
     }
