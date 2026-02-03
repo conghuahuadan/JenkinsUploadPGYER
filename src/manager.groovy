@@ -9,7 +9,7 @@ class manager {
 
     static String getEnvVariable(String s) {
         if (s.equals("WORKSPACE")) {
-            return "D:\\IdeaProjects\\Groovy\\JenkinsUploadPGYER\\src"
+            return "/Volumes/External/IdeaProjects/Groovy/JenkinsUploadPGYER/src"
         } else if (s.equals("Module")) {
             return "appnormal"
         } else if (s.equals("Build")) {
